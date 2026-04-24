@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+.env
+logs/
+chat_history.json
+docs/evaluation_report.json

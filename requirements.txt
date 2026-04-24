@@ -1,0 +1,26 @@
+# requirements.txt
+# FINAL CLEAN REQUIREMENTS
+
+fastapi
+uvicorn[standard]
+
+streamlit
+requests
+
+python-multipart
+
+qdrant-client
+sentence-transformers
+
+mistralai
+
+PyPDF2
+python-docx
+
+pydantic
+python-dotenv
+
+loguru
+langchain
+langchain-mistralai
+python-dotenv
