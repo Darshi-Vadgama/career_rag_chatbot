@@ -1,30 +1,49 @@
 # ui/streamlit_app.py
-# REDUCED / CLEAN VERSION
-# Same Features:
-# Career Chat + Resume + Roadmap + Sessions + No Emojis
+# Final Premium Reduced UI
+# Clean Answers (No ### ** etc.)
+# Career Chat + Resume + Roadmap
+# 3 Dots Delete Chat
+# Roadmap Saved
 
 import streamlit as st
 import requests, json, os, uuid, re
-from datetime import datetime
 
 BASE = "http://backend:8000"
-CHAT_API = f"{BASE}/career-search"
-RESUME_API = f"{BASE}/resume-scan"
-ROADMAP_API = f"{BASE}/career-roadmap"
+CHAT = f"{BASE}/career-search"
+RESUME = f"{BASE}/resume-scan"
+ROADMAP = f"{BASE}/career-roadmap"
 FILE = "chat_history.json"
 
-st.set_page_config(page_title="Career AI", page_icon="💼", layout="wide")
+st.set_page_config(
+    page_title="Career AI",
+    layout="wide"
+)
 
 # =====================================================
 # STYLE
 # =====================================================
 st.markdown("""
 <style>
-html,body,[class*="css"]{background:#0f0f0f;color:white;}
-section[data-testid="stSidebar"]{background:#171717;}
-.user{background:#1f1f1f;padding:12px;border-radius:12px;margin:8px 0;}
-.bot{background:#111111;padding:12px;border-radius:12px;
-border-left:4px solid #10a37f;margin:8px 0;font-size:14px;}
+html,body,[class*="css"]{
+background:#0f0f0f;color:white;
+}
+section[data-testid="stSidebar"]{
+background:#171717;
+}
+.user,.bot{
+padding:12px;
+border-radius:12px;
+margin:8px 0;
+font-size:14px;
+}
+.user{background:#1f1f1f;}
+.bot{
+background:#111111;
+border-left:4px solid #10a37f;
+}
+.stButton button{
+border-radius:10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -35,13 +54,28 @@ def clean(t):
     if not t:
         return ""
     return re.sub(
-        "["
-        u"\U0001F600-\U0001F64F"
-        u"\U0001F300-\U0001F5FF"
-        u"\U0001F680-\U0001F6FF"
-        u"\U00002700-\U000027BF"
-        "]+", "", t
+        "[\U00010000-\U0010ffff]",
+        "",
+        str(t)
     ).strip()
+
+def format_answer(t):
+
+    t = clean(t)
+
+    for x in [
+        "###","##","#",
+        "**","__","`"
+    ]:
+        t = t.replace(x, "")
+
+    t = t.replace("- ", "• ")
+    t = t.replace("* ", "• ")
+
+    while "\n\n\n" in t:
+        t = t.replace("\n\n\n", "\n\n")
+
+    return t.strip()
 
 def load():
     if os.path.exists(FILE):
@@ -49,22 +83,43 @@ def load():
     return []
 
 def save():
-    json.dump(st.session_state.sessions, open(FILE, "w"), indent=2)
+    json.dump(
+        st.session_state.sessions,
+        open(FILE, "w"),
+        indent=2
+    )
 
 def new_chat():
+
     cid = str(uuid.uuid4())
+
     st.session_state.sessions.append({
         "id": cid,
         "title": "New Chat",
         "messages": []
     })
+
     st.session_state.current = cid
     save()
 
-def chat():
+def cur():
     for s in st.session_state.sessions:
         if s["id"] == st.session_state.current:
             return s
+
+def api(url, data=None, files=None):
+
+    try:
+        r = requests.post(
+            url,
+            data=data,
+            files=files,
+            timeout=180
+        )
+        return r.json()
+
+    except:
+        return {}
 
 # =====================================================
 # INIT
@@ -77,6 +132,9 @@ if not st.session_state.sessions:
 
 if "current" not in st.session_state:
     new_chat()
+
+if "delete_id" not in st.session_state:
+    st.session_state.delete_id = ""
 
 # =====================================================
 # SIDEBAR
@@ -96,10 +154,52 @@ with st.sidebar:
 
     st.markdown("### Saved Chats")
 
-    for s in reversed(st.session_state.sessions[-15:]):
-        if st.button(s.get("title", "Chat")[:28], key=s["id"]):
-            st.session_state.current = s["id"]
-            st.rerun()
+    for s in reversed(
+        st.session_state.sessions[-20:]
+    ):
+
+        c1,c2 = st.columns([5,1])
+
+        with c1:
+            if st.button(
+                s.get("title","Chat")[:26],
+                key=f"open_{s['id']}",
+                use_container_width=True
+            ):
+                st.session_state.current = s["id"]
+                st.rerun()
+
+        with c2:
+            if st.button(
+                "⋮",
+                key=f"menu_{s['id']}",
+                use_container_width=True
+            ):
+                st.session_state.delete_id = s["id"]
+
+        if st.session_state.delete_id == s["id"]:
+
+            if st.button(
+                "Delete",
+                key=f"del_{s['id']}",
+                use_container_width=True
+            ):
+
+                st.session_state.sessions = [
+                    x for x in
+                    st.session_state.sessions
+                    if x["id"] != s["id"]
+                ]
+
+                if st.session_state.sessions:
+                    st.session_state.current = \
+                    st.session_state.sessions[-1]["id"]
+                else:
+                    new_chat()
+
+                st.session_state.delete_id = ""
+                save()
+                st.rerun()
 
 # =====================================================
 # CAREER CHAT
@@ -108,13 +208,19 @@ if mode == "Career Chat":
 
     st.title("Career Chat")
 
-    c = chat()
+    c = cur()
 
     for m in c["messages"]:
-        cls = "user" if m["role"] == "user" else "bot"
-        txt = clean(m["content"]).replace("\n", "<br>")
+
+        box = "user" if \
+        m["role"]=="user" else "bot"
+
+        txt = format_answer(
+            m["content"]
+        ).replace("\n","<br>")
+
         st.markdown(
-            f"<div class='{cls}'>{txt}</div>",
+            f"<div class='{box}'>{txt}</div>",
             unsafe_allow_html=True
         )
 
@@ -123,25 +229,25 @@ if mode == "Career Chat":
     if q:
 
         c["messages"].append({
-            "role": "user",
-            "content": q
+            "role":"user",
+            "content":q
         })
 
-        try:
-            r = requests.post(
-                CHAT_API,
-                data={"question": q},
-                timeout=180
-            )
-            ans = r.json().get("answer", "No Answer")
-        except:
-            ans = "Connection Error"
+        res = api(
+            CHAT,
+            {"question":q}
+        )
 
-        ans = clean(ans)
+        ans = format_answer(
+            res.get(
+                "answer",
+                "No Answer"
+            )
+        )
 
         c["messages"].append({
-            "role": "assistant",
-            "content": ans
+            "role":"assistant",
+            "content":ans
         })
 
         if c["title"] == "New Chat":
@@ -157,57 +263,83 @@ elif mode == "Resume Scan":
 
     st.title("Resume Scanner")
 
-    file = st.file_uploader("Upload PDF", type=["pdf"])
-    txt = st.text_area("Or Paste Resume", height=220)
+    f = st.file_uploader(
+        "Upload Resume PDF",
+        type=["pdf"]
+    )
+
+    txt = st.text_area(
+        "Or Paste Resume",
+        height=220
+    )
 
     if st.button("Scan Resume"):
 
-        try:
+        files = None
+        data = {}
 
-            files = None
-            data = {}
+        if f:
+            files = {
+                "file":(
+                    f.name,
+                    f.getvalue(),
+                    "application/pdf"
+                )
+            }
 
-            if file:
-                files = {
-                    "file":(
-                        file.name,
-                        file.getvalue(),
-                        "application/pdf"
-                    )
-                }
+        if txt.strip():
+            data["resume_text"] = txt
 
-            if txt.strip():
-                data["resume_text"] = txt
+        res = api(
+            RESUME,
+            data=data,
+            files=files
+        )
 
-            r = requests.post(
-                RESUME_API,
-                files=files,
-                data=data,
-                timeout=180
+        if res:
+
+            st.success(
+                "Resume Analysis Complete"
             )
 
-            res = r.json()
+            for k,t in {
 
-            st.success("Resume Analysis Complete")
+                "career_matches":
+                "Recommended Careers",
 
-            for k, title in {
-                "career_matches":"Recommended Careers",
-                "skills_found":"Skills Found",
-                "missing_skills":"Missing Skills",
-                "suggestions":"Suggestions"
+                "skills_found":
+                "Skills Found",
+
+                "missing_skills":
+                "Missing Skills",
+
+                "suggestions":
+                "Suggestions"
+
             }.items():
 
                 if k in res:
-                    st.subheader(title)
-                    for x in res[k]:
-                        st.write("•", clean(x))
+
+                    st.subheader(t)
+
+                    for i in res[k]:
+                        st.write(
+                            "•",
+                            format_answer(i)
+                        )
 
             if "summary" in res:
-                st.subheader("Summary")
-                st.info(clean(res["summary"]))
 
-        except:
-            st.error("Resume Scan Failed")
+                st.subheader("Summary")
+
+                st.info(
+                    format_answer(
+                        res["summary"]
+                    )
+                )
+
+        else:
+            st.error("Scan Failed")
 
 # =====================================================
 # ROADMAP
@@ -216,36 +348,43 @@ else:
 
     st.title("Career Roadmap")
 
-    career = st.text_input(
+    name = st.text_input(
         "Enter Career Name"
     )
 
     if st.button("Generate Roadmap"):
 
-        try:
+        res = api(
+            ROADMAP,
+            {"career":name}
+        )
 
-            r = requests.post(
-                ROADMAP_API,
-                data={"career": career},
-                timeout=180
-            )
+        ans = format_answer(
+            res.get("answer") or
+            res.get("roadmap") or
+            "No roadmap"
+        ).replace("\\n","\n")
 
-            d = r.json()
+        st.text_area(
+            "Roadmap",
+            ans,
+            height=520
+        )
 
-            ans = (
-                d.get("answer")
-                or d.get("roadmap")
-                or d.get("result")
-                or "No roadmap"
-            )
+        c = cur()
 
-            ans = clean(ans).replace("\\n", "\n")
+        c["messages"].append({
+            "role":"user",
+            "content":
+            f"Roadmap for {name}"
+        })
 
-            st.text_area(
-                "Roadmap",
-                ans,
-                height=500
-            )
+        c["messages"].append({
+            "role":"assistant",
+            "content":ans
+        })
 
-        except:
-            st.error("Roadmap Failed")
+        if c["title"] == "New Chat":
+            c["title"] = f"Roadmap {name}"
+
+        save()
