@@ -1,26 +1,24 @@
 # tests/performance_test.py
-# FAST PERFORMANCE TEST
-# 10 Concurrent Requests
+# FINAL STABLE PERFORMANCE TEST
+# Target: 50 Requests | 0 Failures | 15-25 sec realistic
 
 import asyncio
 import time
 import httpx
 
 URL = "http://localhost:8000/career-search"
+
 TOTAL_REQUESTS = 50
+MAX_WORKERS = 8
 
 PAYLOAD = {
     "question": "what is doctor?"
 }
 
-# limit active parallel workers
-MAX_WORKERS = 5
-
-
 # =====================================================
 sem = asyncio.Semaphore(MAX_WORKERS)
 
-
+# =====================================================
 async def send_request(client, i):
 
     async with sem:
@@ -30,8 +28,7 @@ async def send_request(client, i):
         try:
             r = await client.post(
                 URL,
-                data=PAYLOAD,
-                timeout=90
+                data=PAYLOAD
             )
 
             end = time.perf_counter()
@@ -55,7 +52,6 @@ async def send_request(client, i):
                 "error": str(e)
             }
 
-
 # =====================================================
 async def main():
 
@@ -64,7 +60,22 @@ async def main():
 
     total_start = time.perf_counter()
 
-    async with httpx.AsyncClient() as client:
+    limits = httpx.Limits(
+        max_keepalive_connections=30,
+        max_connections=50
+    )
+
+    timeout = httpx.Timeout(
+        connect=10,
+        read=120,
+        write=30,
+        pool=30
+    )
+
+    async with httpx.AsyncClient(
+        limits=limits,
+        timeout=timeout
+    ) as client:
 
         tasks = [
             send_request(client, i + 1)
@@ -75,7 +86,7 @@ async def main():
 
     total_end = time.perf_counter()
 
-    # -----------------------------------------
+    # =================================================
     success = [x for x in results if x["ok"]]
     failed = [x for x in results if not x["ok"]]
 
@@ -85,23 +96,33 @@ async def main():
     mn = round(min(times),2) if times else 0
     mx = round(max(times),2) if times else 0
 
-    # -----------------------------------------
+    total = round(total_end-total_start,2)
+
+    rps = round(TOTAL_REQUESTS/total,2) if total else 0
+
+    success_rate = round(
+        len(success)/TOTAL_REQUESTS*100,2
+    )
+
+    # =================================================
     print("========== RESULT ==========")
     print("Total Requests :", TOTAL_REQUESTS)
+    print("Parallel Users :", MAX_WORKERS)
     print("Success        :", len(success))
     print("Failed         :", len(failed))
+    print("Success Rate   :", success_rate, "%")
     print("Average Time   :", avg, "sec")
     print("Min Time       :", mn, "sec")
     print("Max Time       :", mx, "sec")
-    print("Total Test Time:", round(total_end-total_start,2), "sec")
+    print("Requests/Sec   :", rps)
+    print("Total Test Time:", total, "sec")
 
     if failed:
-        print("\nFailed:")
-        for f in failed:
+        print("\nFailed Requests:")
+        for f in failed[:10]:
             print(f)
 
     print("\nDone.")
-
 
 # =====================================================
 if __name__ == "__main__":

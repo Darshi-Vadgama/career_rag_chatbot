@@ -1,23 +1,19 @@
 # ui/streamlit_app.py
-# Final Premium Reduced UI
-# Clean Answers (No ### ** etc.)
-# Career Chat + Resume + Roadmap
-# 3 Dots Delete Chat
-# Roadmap Saved
+# FINAL POLISHED VERSION
+# Career Chat + Resume Scan + Roadmap
+# Fixed resume ugly JSON output
+# Mode isolation + Delete toggle + Multi query
 
 import streamlit as st
 import requests, json, os, uuid, re
 
 BASE = "http://backend:8000"
 CHAT = f"{BASE}/career-search"
-RESUME = f"{BASE}/resume-scan"
 ROADMAP = f"{BASE}/career-roadmap"
+RESUME = f"{BASE}/resume-scan"
 FILE = "chat_history.json"
 
-st.set_page_config(
-    page_title="Career AI",
-    layout="wide"
-)
+st.set_page_config(page_title="Career AI", layout="wide")
 
 # =====================================================
 # STYLE
@@ -25,24 +21,40 @@ st.set_page_config(
 st.markdown("""
 <style>
 html,body,[class*="css"]{
-background:#0f0f0f;color:white;
+background:#0b1020;
+color:white;
 }
+
 section[data-testid="stSidebar"]{
-background:#171717;
+background:#151515;
 }
+
 .user,.bot{
-padding:12px;
+padding:14px;
 border-radius:12px;
-margin:8px 0;
-font-size:14px;
+margin:10px 0;
+font-size:17px;
+line-height:1.7;
 }
-.user{background:#1f1f1f;}
+
+.user{
+background:#1e1e1e;
+}
+
 .bot{
-background:#111111;
-border-left:4px solid #10a37f;
+background:#0d0d0d;
+border-left:4px solid #18e6c3;
 }
+
 .stButton button{
 border-radius:10px;
+font-size:16px !important;
+}
+
+.stChatInput input,
+.stTextInput input,
+textarea{
+font-size:17px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -53,28 +65,13 @@ border-radius:10px;
 def clean(t):
     if not t:
         return ""
-    return re.sub(
-        "[\U00010000-\U0010ffff]",
-        "",
-        str(t)
-    ).strip()
-
-def format_answer(t):
-
-    t = clean(t)
-
-    for x in [
-        "###","##","#",
-        "**","__","`"
-    ]:
+    t = str(t)
+    t = re.sub(r"[\U00010000-\U0010ffff]", "", t)
+    for x in ["###","##","#","**","__","`"]:
         t = t.replace(x, "")
-
-    t = t.replace("- ", "• ")
-    t = t.replace("* ", "• ")
-
+    t = t.replace("- ", "• ").replace("* ", "• ")
     while "\n\n\n" in t:
         t = t.replace("\n\n\n", "\n\n")
-
     return t.strip()
 
 def load():
@@ -89,26 +86,7 @@ def save():
         indent=2
     )
 
-def new_chat():
-
-    cid = str(uuid.uuid4())
-
-    st.session_state.sessions.append({
-        "id": cid,
-        "title": "New Chat",
-        "messages": []
-    })
-
-    st.session_state.current = cid
-    save()
-
-def cur():
-    for s in st.session_state.sessions:
-        if s["id"] == st.session_state.current:
-            return s
-
 def api(url, data=None, files=None):
-
     try:
         r = requests.post(
             url,
@@ -117,21 +95,44 @@ def api(url, data=None, files=None):
             timeout=180
         )
         return r.json()
-
     except:
         return {}
 
+def get_chat(cid):
+    for s in st.session_state.sessions:
+        if s["id"] == cid:
+            return s
+
+def new_chat(mode):
+    cid = str(uuid.uuid4())
+
+    st.session_state.sessions.append({
+        "id": cid,
+        "mode": mode,
+        "title": "New Chat",
+        "messages": []
+    })
+
+    st.session_state.current = cid
+    save()
+
+def split_query(q):
+    parts = re.split(
+        r"\band\b|\balso\b|\&",
+        q,
+        flags=re.I
+    )
+    parts = [x.strip() for x in parts if x.strip()]
+    return parts if len(parts) > 1 else [q]
+
 # =====================================================
-# INIT
+# SESSION
 # =====================================================
 if "sessions" not in st.session_state:
     st.session_state.sessions = load()
 
-if not st.session_state.sessions:
-    st.session_state.sessions = []
-
 if "current" not in st.session_state:
-    new_chat()
+    st.session_state.current = ""
 
 if "delete_id" not in st.session_state:
     st.session_state.delete_id = ""
@@ -145,61 +146,91 @@ with st.sidebar:
 
     mode = st.radio(
         "Choose Tool",
-        ["Career Chat", "Resume Scan", "Roadmap"]
+        ["Career Chat","Resume Scan","Roadmap"]
     )
 
+    cur = get_chat(st.session_state.current)
+
+    if not cur or cur["mode"] != mode:
+
+        found = None
+
+        for s in reversed(st.session_state.sessions):
+            if s["mode"] == mode:
+                found = s["id"]
+                break
+
+        if found:
+            st.session_state.current = found
+        else:
+            new_chat(mode)
+
+        st.rerun()
+
     if st.button("New Chat"):
-        new_chat()
+        new_chat(mode)
         st.rerun()
 
     st.markdown("### Saved Chats")
 
-    for s in reversed(
-        st.session_state.sessions[-20:]
-    ):
+    chats = [
+        x for x in st.session_state.sessions
+        if x["mode"] == mode
+    ]
 
-        c1,c2 = st.columns([5,1])
+    for s in reversed(chats[-20:]):
+
+        c1, c2 = st.columns([5,1])
 
         with c1:
             if st.button(
-                s.get("title","Chat")[:26],
-                key=f"open_{s['id']}",
+                s["title"][:28],
+                key="open_"+s["id"],
                 use_container_width=True
             ):
                 st.session_state.current = s["id"]
+                st.session_state.delete_id = ""
                 st.rerun()
 
         with c2:
             if st.button(
                 "⋮",
-                key=f"menu_{s['id']}",
+                key="menu_"+s["id"],
                 use_container_width=True
             ):
-                st.session_state.delete_id = s["id"]
+                if st.session_state.delete_id == s["id"]:
+                    st.session_state.delete_id = ""
+                else:
+                    st.session_state.delete_id = s["id"]
+                st.rerun()
 
         if st.session_state.delete_id == s["id"]:
-
             if st.button(
                 "Delete",
-                key=f"del_{s['id']}",
+                key="del_"+s["id"],
                 use_container_width=True
             ):
-
                 st.session_state.sessions = [
-                    x for x in
-                    st.session_state.sessions
+                    x for x in st.session_state.sessions
                     if x["id"] != s["id"]
                 ]
 
-                if st.session_state.sessions:
-                    st.session_state.current = \
-                    st.session_state.sessions[-1]["id"]
-                else:
-                    new_chat()
+                remain = [
+                    x for x in st.session_state.sessions
+                    if x["mode"] == mode
+                ]
 
                 st.session_state.delete_id = ""
+
+                if remain:
+                    st.session_state.current = remain[-1]["id"]
+                else:
+                    new_chat(mode)
+
                 save()
                 st.rerun()
+
+chat = get_chat(st.session_state.current)
 
 # =====================================================
 # CAREER CHAT
@@ -208,19 +239,11 @@ if mode == "Career Chat":
 
     st.title("Career Chat")
 
-    c = cur()
-
-    for m in c["messages"]:
-
-        box = "user" if \
-        m["role"]=="user" else "bot"
-
-        txt = format_answer(
-            m["content"]
-        ).replace("\n","<br>")
+    for m in chat["messages"]:
+        cls = "user" if m["role"] == "user" else "bot"
 
         st.markdown(
-            f"<div class='{box}'>{txt}</div>",
+            f"<div class='{cls}'>{clean(m['content']).replace(chr(10),'<br>')}</div>",
             unsafe_allow_html=True
         )
 
@@ -228,40 +251,82 @@ if mode == "Career Chat":
 
     if q:
 
-        c["messages"].append({
+        chat["messages"].append({
             "role":"user",
             "content":q
         })
 
-        res = api(
-            CHAT,
-            {"question":q}
-        )
+        out = []
 
-        ans = format_answer(
-            res.get(
-                "answer",
-                "No Answer"
-            )
-        )
+        for part in split_query(q):
+            res = api(CHAT, {"question":part})
+            out.append(clean(res.get("answer","No Answer")))
 
-        c["messages"].append({
+        ans = "\n\n".join(out)
+
+        chat["messages"].append({
             "role":"assistant",
             "content":ans
         })
 
-        if c["title"] == "New Chat":
-            c["title"] = q[:35]
+        if chat["title"] == "New Chat":
+            chat["title"] = q[:35]
 
         save()
         st.rerun()
 
 # =====================================================
+# ROADMAP
+# =====================================================
+elif mode == "Roadmap":
+
+    st.title("Career Roadmap")
+
+    name = st.text_input("Enter Career Name")
+
+    if st.button("Generate Roadmap"):
+
+        chat["messages"].append({
+            "role":"user",
+            "content":f"Roadmap for {name}"
+        })
+
+        res = api(
+            ROADMAP,
+            {"career":name}
+        )
+
+        ans = clean(
+            res.get("answer") or
+            res.get("roadmap") or
+            "No Roadmap"
+        )
+
+        chat["messages"].append({
+            "role":"assistant",
+            "content":ans
+        })
+
+        if chat["title"] == "New Chat":
+            chat["title"] = f"Roadmap {name}"
+
+        save()
+        st.rerun()
+
+    for m in chat["messages"]:
+        cls = "user" if m["role"] == "user" else "bot"
+
+        st.markdown(
+            f"<div class='{cls}'>{clean(m['content']).replace(chr(10),'<br>')}</div>",
+            unsafe_allow_html=True
+        )
+
+# =====================================================
 # RESUME
 # =====================================================
-elif mode == "Resume Scan":
+else:
 
-    st.title("Resume Scanner")
+    st.title("Resume Scan")
 
     f = st.file_uploader(
         "Upload Resume PDF",
@@ -296,95 +361,44 @@ elif mode == "Resume Scan":
             files=files
         )
 
-        if res:
+        msg = ""
 
-            st.success(
-                "Resume Analysis Complete"
-            )
+        titles = {
+            "career_matches":"Recommended Careers",
+            "skills_found":"Skills Found",
+            "missing_skills":"Missing Skills",
+            "suggestions":"Suggestions"
+        }
 
-            for k,t in {
+        for k,t in titles.items():
 
-                "career_matches":
-                "Recommended Careers",
+            if k in res and res[k]:
 
-                "skills_found":
-                "Skills Found",
+                msg += t + "\n"
 
-                "missing_skills":
-                "Missing Skills",
+                for i in res[k]:
+                    msg += f"• {i}\n"
 
-                "suggestions":
-                "Suggestions"
+                msg += "\n"
 
-            }.items():
+        if "summary" in res:
+            msg += "Summary\n"
+            msg += clean(res["summary"])
 
-                if k in res:
-
-                    st.subheader(t)
-
-                    for i in res[k]:
-                        st.write(
-                            "•",
-                            format_answer(i)
-                        )
-
-            if "summary" in res:
-
-                st.subheader("Summary")
-
-                st.info(
-                    format_answer(
-                        res["summary"]
-                    )
-                )
-
-        else:
-            st.error("Scan Failed")
-
-# =====================================================
-# ROADMAP
-# =====================================================
-else:
-
-    st.title("Career Roadmap")
-
-    name = st.text_input(
-        "Enter Career Name"
-    )
-
-    if st.button("Generate Roadmap"):
-
-        res = api(
-            ROADMAP,
-            {"career":name}
-        )
-
-        ans = format_answer(
-            res.get("answer") or
-            res.get("roadmap") or
-            "No roadmap"
-        ).replace("\\n","\n")
-
-        st.text_area(
-            "Roadmap",
-            ans,
-            height=520
-        )
-
-        c = cur()
-
-        c["messages"].append({
-            "role":"user",
-            "content":
-            f"Roadmap for {name}"
-        })
-
-        c["messages"].append({
+        chat["messages"].append({
             "role":"assistant",
-            "content":ans
+            "content":msg or "No Result"
         })
 
-        if c["title"] == "New Chat":
-            c["title"] = f"Roadmap {name}"
+        if chat["title"] == "New Chat":
+            chat["title"] = "Resume Scan"
 
         save()
+        st.rerun()
+
+    for m in chat["messages"]:
+
+        st.markdown(
+            f"<div class='bot'>{clean(m['content']).replace(chr(10),'<br>')}</div>",
+            unsafe_allow_html=True
+        )
