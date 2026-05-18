@@ -44,7 +44,6 @@ def detect_entity(q):
 
     return ""
 
-# =====================================================
 def detect_intents(q):
 
     q = q.lower()
@@ -73,9 +72,7 @@ def detect_intents(q):
 
     return list(dict.fromkeys(out))
 
-# =====================================================
-# QUALITY FEATURES
-# =====================================================
+
 def score_salary(ans):
 
     txt = ans.lower()
@@ -90,14 +87,14 @@ def score_salary(ans):
 
     return min(1, 0.55 + nums*0.02 + levels*0.05)
 
-# =====================================================
+
 def score_skills(ans):
 
     bullets = ans.count("-") + ans.count("•")
 
     return min(1, 0.55 + bullets*0.02)
 
-# =====================================================
+
 def score_overview(ans):
 
     txt = ans.lower()
@@ -113,7 +110,7 @@ def score_overview(ans):
 
     return min(1, 0.60 + sec*0.08)
 
-# =====================================================
+
 def score_experience(ans):
 
     yrs = len(
@@ -125,7 +122,6 @@ def score_experience(ans):
 
     return min(1, 0.55 + yrs*0.05)
 
-# =====================================================
 def score_recommend(ans):
 
     opts = (
@@ -163,7 +159,7 @@ def quality_score(intents, ans):
 
     return sum(vals)/len(vals)
 
-# =====================================================
+
 def faithfulness(ans, src):
 
     if not ans.strip():
@@ -179,7 +175,7 @@ def faithfulness(ans, src):
 
     return min(score,1)
 
-# =====================================================
+
 def bar(v):
 
     n = int(v*30)
@@ -188,7 +184,7 @@ def bar(v):
         "█"*n + \
         "░"*(30-n) + "]"
 
-# =====================================================
+
 def main():
 
     print("\n" + "="*70)

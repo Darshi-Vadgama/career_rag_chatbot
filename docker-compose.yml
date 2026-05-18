@@ -1,46 +1,59 @@
-# docker-compose.yml
-# FINAL PERFORMANCE OPTIMIZED VERSION
-# Target: 50 requests | 0 failures | 15-25 sec realistic
-
 services:
 
   backend:
     build: .
-    container_name: career_backend
-
-    command: >
-      uvicorn app.main:app
-      --host 0.0.0.0
-      --port 8000
-      --workers 4
-
+    container_name: backend
     ports:
       - "8000:8000"
-
-    restart: always
-
-    environment:
-      - PYTHONUNBUFFERED=1
-
-    volumes:
-      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - ollama
+      - redis
+      - postgres
 
   frontend:
-    build: .
-    container_name: career_frontend
+   build: .
+   container_name: career_frontend
+   working_dir: /app
+   volumes:
+    - .:/app
+   command: >
+    sh -c "
+    streamlit run ui/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    "
+   ports:
+    - "8501:8501"
+   depends_on:
+    - backend
 
-    command: >
-      streamlit run ui/streamlit_app.py
-      --server.port 8501
-      --server.address 0.0.0.0
-
+  redis:
+    image: redis:7
+    container_name: redis
     ports:
-      - "8501:8501"
+      - "6379:6379"
 
+  postgres:
+    image: postgres:16
+    container_name: postgres
     restart: always
-
-    depends_on:
-      - backend
-
+    environment:
+      POSTGRES_USER: career_user
+      POSTGRES_PASSWORD: career_pass
+      POSTGRES_DB: career_db
+    ports:
+      - "5432:5432"
     volumes:
-      - .:/app
+      - postgres_data:/var/lib/postgresql/data
+
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  ollama_data:
+  postgres_data:

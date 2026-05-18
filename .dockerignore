@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+*.log
+data/
+dataset/
+*.zip
+*.pdf
+*.png
+*.jpg
+*.ipynb
+node_modules/

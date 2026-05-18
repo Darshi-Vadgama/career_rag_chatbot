@@ -1,36 +1,33 @@
-# app/main.py
-# FULL UPDATED MAIN WITH LOGGING
-
+import os
+import httpx
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-
 from app.api.routes import router
-from app.utils.logger import logger
+from app.services.auth_service import init_db
 
-# =====================================================
-# LOAD ENV
-# =====================================================
-load_dotenv()
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
 
-logger.info("Environment Loaded")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # DB init
+    init_db()
+    # Warm up Ollama so first user request is instant
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            await client.post(f"{OLLAMA_URL}/api/generate", json={
+                "model": "qwen2.5:7b",
+                "prompt": "hi",
+                "stream": False,
+                "keep_alive": "60m"
+            })
+        print("✅ Ollama model warmed up")
+    except Exception as e:
+        print(f"⚠️ Ollama warmup failed (will be slow on first request): {e}")
+    yield
 
+app = FastAPI(lifespan=lifespan)
 
-# =====================================================
-# APP
-# =====================================================
-app = FastAPI(
-    title="Career AI API",
-    version="1.0.0",
-    description="RAG + Mistral Career Guidance Backend"
-)
-
-logger.info("FastAPI App Created")
-
-
-# =====================================================
-# CORS
-# =====================================================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -39,28 +36,4 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logger.info("CORS Enabled")
-
-
-# =====================================================
-# ROUTES
-# =====================================================
 app.include_router(router)
-
-logger.info("Routes Registered")
-
-
-# =====================================================
-# STARTUP
-# =====================================================
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Career AI Backend Started Successfully")
-
-
-# =====================================================
-# SHUTDOWN
-# =====================================================
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Career AI Backend Stopped")

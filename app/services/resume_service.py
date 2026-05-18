@@ -1,165 +1,119 @@
-# app/services/resume_service.py
-# FINAL RESUME SCANNER WITH LLM (Mistral Cloud)
+# resume_service.py
 
-from app.services.llm_service import ask_llm
-import io
+from fastapi import UploadFile
 from PyPDF2 import PdfReader
+from io import BytesIO
+from app.services.llm_service import ask_llm_stream
 
-# =====================================================
-# MAIN
-# =====================================================
-async def scan_resume(text="", file=None):
 
-    content = await extract_content(text, file)
+RESUME_PROMPT = """
+You are an expert resume analyzer.
 
-    if not content.strip():
-        return {
-            "career_matches":["No resume content found"],
-            "skills_found":[],
-            "missing_skills":[],
-            "suggestions":["Upload valid resume file"],
-            "summary":"No content detected."
-        }
+STRICT RULE: You MUST follow EXACTLY this structure every time.
+Do NOT skip any section. Do NOT rename any section.
+Do NOT add extra sections. Do NOT change the order.
 
-    prompt = f"""
-You are an expert ATS Resume Analyzer and Career Coach.
+Analyze the resume below and fill each section in detail.
 
-Analyze this resume content:
+---
 
-{content}
+# Profile Summary
 
-Return ONLY clean plain text in this exact format:
+Write 3-5 lines summarizing the candidate's background, experience level, and career focus.
 
-Best Career Matches:
-• career 1
-• career 2
-• career 3
+---
 
-Skills Found:
-• skill 1
-• skill 2
+# Skills
 
-Missing Skills:
-• skill 1
-• skill 2
+## Technical Skills
+List all technical skills found in the resume as bullet points.
 
-Suggestions:
-• suggestion 1
-• suggestion 2
-• suggestion 3
+## Tools & Technologies
+List all tools, software, and platforms as bullet points.
 
-Summary:
-2-3 lines summary
+## Soft Skills
+List soft skills as bullet points. If not mentioned, infer from context.
 
-Rules:
-- No markdown
-- No ** symbols
-- No ###
-- Clear professional answer
+---
+
+# Recommended Job Roles
+
+List 4-6 specific job roles this candidate is suited for as bullet points.
+
+---
+
+# Why These Roles Fit
+
+For each recommended role, write 1-2 lines explaining why the candidate fits.
+
+---
+
+# Strengths
+
+List 4-6 strengths as bullet points with 1-2 lines explanation each.
+
+---
+
+# Weaknesses
+
+List 3-4 weaknesses as bullet points with 1-2 lines explanation each.
+
+---
+
+# Improvements
+
+List 4-6 specific improvements the candidate should make to their resume as bullet points.
+
+---
+
+# Career Suggestions
+
+Write 3-5 lines of career path advice based on the candidate's current profile.
+
+---
+
+# Learning Recommendations
+
+List 4-6 specific courses, skills, or certifications the candidate should pursue as bullet points.
+
+---
+
+Resume:
+{resume_text}
 """
 
-    ans = await ask_llm(prompt)
 
-    return parse_output(ans)
+async def scan_resume(file: UploadFile):
 
-# =====================================================
-# EXTRACT TEXT
-# =====================================================
-async def extract_content(text,file):
+    try:
 
-    content = text + " " if text else ""
+        content = await file.read()
 
-    if not file:
-        return content
-
-    name = file.filename.lower()
-
-    # PDF
-    if name.endswith(".pdf"):
         try:
-            pdf = PdfReader(io.BytesIO(await file.read()))
-            for p in pdf.pages:
-                tx = p.extract_text()
-                if tx:
-                    content += tx + " "
+
+            pdf = BytesIO(content)
+
+            reader = PdfReader(pdf)
+
+            text = "\n".join(
+                page.extract_text() or ""
+                for page in reader.pages
+            )
+
         except:
-            pass
 
-    # TXT
-    elif name.endswith(".txt"):
-        try:
-            content += (await file.read()).decode("utf-8")
-        except:
-            pass
+            text = content.decode(
+                "utf-8",
+                errors="ignore"
+            )
 
-    # DOCX fallback
-    elif name.endswith(".docx"):
-        content += "resume uploaded"
+        prompt = RESUME_PROMPT.format(resume_text=text)
 
-    return content
+        return ask_llm_stream(prompt)
 
-# =====================================================
-# PARSE OUTPUT
-# =====================================================
-def parse_output(ans):
+    except Exception as e:
 
-    lines = [x.strip() for x in ans.splitlines() if x.strip()]
+        async def err():
+            yield f"Resume Error: {str(e)}"
 
-    sec = {
-        "career_matches":[],
-        "skills_found":[],
-        "missing_skills":[],
-        "suggestions":[],
-        "summary":""
-    }
-
-    mode = ""
-
-    for line in lines:
-
-        low = line.lower()
-
-        if "best career matches" in low:
-            mode="career"; continue
-
-        if "skills found" in low:
-            mode="skills"; continue
-
-        if "missing skills" in low:
-            mode="missing"; continue
-
-        if "suggestions" in low:
-            mode="suggest"; continue
-
-        if "summary" in low:
-            mode="summary"; continue
-
-        item = line.replace("•","").strip()
-
-        if mode=="career":
-            sec["career_matches"].append(item)
-
-        elif mode=="skills":
-            sec["skills_found"].append(item)
-
-        elif mode=="missing":
-            sec["missing_skills"].append(item)
-
-        elif mode=="suggest":
-            sec["suggestions"].append(item)
-
-        elif mode=="summary":
-            sec["summary"] += item + " "
-
-    # fallback
-    if not sec["career_matches"]:
-        sec["career_matches"]=["Software Engineer"]
-
-    if not sec["suggestions"]:
-        sec["suggestions"]=[
-            "Add projects",
-            "Add certifications",
-            "Improve ATS keywords"
-        ]
-
-    return sec
+        return err()
