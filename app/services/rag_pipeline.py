@@ -1,13 +1,9 @@
-# app/services/rag_pipeline.py
-
 import re
 from app.services.qdrant_service import search_docs
 from app.services.llm_service import ask_llm_stream
 from app.services.redis_service import (
     get_cache, set_cache, save_memory, get_last_n_messages,
 )
-
-# ── Static responses ──────────────────────────────────────────────────────────
 
 REJECTION_MESSAGE = (
     "I'm a career counseling assistant and can only help with career-related questions. "
@@ -104,7 +100,6 @@ Mention top cities and govt vs private salary differences.
 Exactly 3 lines: why good career, key to success, one motivational line.
 """
 
-# ── Classifiers ───────────────────────────────────────────────────────────────
 
 GREETING_EXACT = {
     "hello","hi","hey","hii","helo","howdy","greetings","sup",
@@ -207,8 +202,6 @@ async def _static_stream(text: str):
         yield text[i:i + size]
 
 
-# ── Main entry point ──────────────────────────────────────────────────────────
-
 async def run_rag(question: str, session_id: str = "default"):
     # Guard
     if not question or not question.strip():
@@ -216,11 +209,9 @@ async def run_rag(question: str, session_id: str = "default"):
 
     question = question.strip()
 
-    # Greeting
     if is_greeting(question):
         return _static_stream(GREETING_MESSAGE)
 
-    # Non-career
     if not is_career_related(question):
         return _static_stream(REJECTION_MESSAGE)
 
@@ -228,13 +219,11 @@ async def run_rag(question: str, session_id: str = "default"):
     history      = get_last_n_messages(session_id, n=6)
     followup     = is_followup(question, history)
 
-    # Cache (fresh only)
     if not followup:
         cached = get_cache(normalized_q)
         if cached:
             return _static_stream(cached)
 
-    # Qdrant (non-fatal)
     context_block = ""
     try:
         docs = search_docs(question)
@@ -246,14 +235,12 @@ async def run_rag(question: str, session_id: str = "default"):
     except Exception:
         pass
 
-    # Build prompt
     if followup:
         prompt = FOLLOWUP_PROMPT.format(history=history, question=question)
     else:
         prompt = MASTER_PROMPT.format(
             question=question, context_block=context_block, rule=RULE)
 
-    # Stream from LLM
     stream = ask_llm_stream(prompt)
 
     async def final_stream():

@@ -8,15 +8,13 @@ logger = logging.getLogger(__name__)
 QDRANT_URL        = os.getenv("QDRANT_URL")
 QDRANT_API_KEY    = os.getenv("QDRANT_API_KEY")
 COLLECTION        = os.getenv("QDRANT_COLLECTION")
-SCORE_THRESHOLD   = 0.75  # only use docs with similarity > 75%
+SCORE_THRESHOLD   = 0.75 
 
 client = QdrantClient(
     url=QDRANT_URL,
     api_key=QDRANT_API_KEY
 )
 
-# Same embedding model you used when ingesting docs into Qdrant
-# Make sure this matches what you used during ingestion!
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 
@@ -35,14 +33,13 @@ def search_docs(query: str, top_k: int = 5):
         Empty list if no relevant docs found
     """
     try:
-        # Convert query to vector using same model used during ingestion
         query_vector = embedder.encode(query).tolist()
 
         results = client.search(
             collection_name=COLLECTION,
             query_vector=query_vector,
             limit=top_k,
-            score_threshold=SCORE_THRESHOLD,  # filters out irrelevant docs
+            score_threshold=SCORE_THRESHOLD, 
             with_payload=True,
         )
 

@@ -1,5 +1,3 @@
-# app/services/auth_service.py
-
 import redis
 import bcrypt
 import jwt
@@ -10,8 +8,6 @@ import psycopg2.extras
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 
-
-# ── Config ────────────────────────────────────────────────────────────────────
 
 SECRET_KEY     = "your-super-secret-key-change-this"
 ALGORITHM      = "HS256"
@@ -29,19 +25,14 @@ DB_CONFIG = {
 }
 
 
-# ── DB connection ─────────────────────────────────────────────────────────────
-
 def get_db():
     return psycopg2.connect(**DB_CONFIG)
 
-
-# ── Create tables on startup ──────────────────────────────────────────────────
 
 def init_db():
     conn = get_db()
     cur  = conn.cursor()
 
-    # users table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -51,7 +42,6 @@ def init_db():
         );
     """)
 
-    # chats table — one row per chat session
     cur.execute("""
         CREATE TABLE IF NOT EXISTS chats (
             id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -61,7 +51,6 @@ def init_db():
         );
     """)
 
-    # messages table — one row per message
     cur.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -77,8 +66,6 @@ def init_db():
     conn.close()
 
 
-# ── Password helpers ──────────────────────────────────────────────────────────
-
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
@@ -87,7 +74,6 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
-# ── JWT helpers ───────────────────────────────────────────────────────────────
 
 def create_access_token(user_id: str) -> str:
     payload = {
@@ -117,7 +103,6 @@ def decode_access_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid access token")
 
 
-# ── Auth ──────────────────────────────────────────────────────────────────────
 
 def register_user(username: str, password: str) -> dict:
     conn = get_db()
@@ -216,7 +201,6 @@ def logout_user(user_id: str, refresh_token: str):
     r.delete(f"refresh:{user_id}:{refresh_token}")
 
 
-# ── Chat session helpers ──────────────────────────────────────────────────────
 
 def create_chat(user_id: str, title: str = "New Chat") -> dict:
     conn = get_db()

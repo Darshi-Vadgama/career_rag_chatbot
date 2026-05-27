@@ -1,23 +1,14 @@
-# tests/query_evaluate.py
-# FINAL FAIR SCORING EVALUATOR
-# One Scoreboard | Fair Scores | Multi Intent | Realistic Demo
-
 import requests
 import time
 import re
 from sentence_transformers import SentenceTransformer, util
 
 API_URL = "http://localhost:8000/career-search"
-
-# =====================================================
-# LOAD MODEL
-# =====================================================
 print("\nLoading semantic model...")
 model = SentenceTransformer(
     "sentence-transformers/all-MiniLM-L6-v2"
 )
 
-# =====================================================
 def sim(a, b):
     if not a.strip() or not b.strip():
         return 0.0
@@ -29,7 +20,6 @@ def sim(a, b):
 
     return max(0.0, min(1.0, float(score)))
 
-# =====================================================
 def detect_entity(q):
 
     q = q.lower()
@@ -132,7 +122,6 @@ def score_recommend(ans):
 
     return min(1, 0.60 + opts*0.03)
 
-# =====================================================
 def quality_score(intents, ans):
 
     vals = []
@@ -224,7 +213,6 @@ def main():
         print("\nNo answer returned.")
         return
 
-    # ---------------------------------------------
     entity = detect_entity(query)
     intents = detect_intents(query)
 
@@ -282,8 +270,6 @@ def main():
     cosine = round(cosine,3)
     faith = round(faith,3)
     overall = round(overall,3)
-
-    # ---------------------------------------------
     print("\n" + "="*70)
     print(" RESULT ")
     print("="*70)
@@ -323,7 +309,5 @@ def main():
 
     print("\n" + bar(overall))
     print("="*70)
-
-# =====================================================
 if __name__ == "__main__":
     main()

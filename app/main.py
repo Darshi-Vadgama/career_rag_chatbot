@@ -10,9 +10,7 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # DB init
     init_db()
-    # Warm up Ollama so first user request is instant
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             await client.post(f"{OLLAMA_URL}/api/generate", json={

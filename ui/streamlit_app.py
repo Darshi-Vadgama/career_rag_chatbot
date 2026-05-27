@@ -1,5 +1,3 @@
-# ui/streamlit_app.py
-
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
@@ -14,7 +12,6 @@ CHATS_URL   = f"{BASE_URL}/chats"
 
 st.set_page_config(page_title="Career AI", layout="wide")
 
-# ── Session defaults ──────────────────────────────────────────────────────────
 for key, val in {
     "messages":             [],
     "theme":                "light",
@@ -27,13 +24,11 @@ for key, val in {
     "chat_list":            [],
     "last_voice_processed": "",
     "pending_question":     "",
-    "voice_counter":        0,   # increments each time voice sends → triggers rerun
+    "voice_counter":        0, 
 }.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
-
-# ── Theme ─────────────────────────────────────────────────────────────────────
 def apply_theme():
     dark = st.session_state.theme == "dark"
     bg   = "#1e1f22" if dark else "#ffffff"
@@ -67,19 +62,6 @@ def apply_theme():
     </style>""", unsafe_allow_html=True)
 
 apply_theme()
-
-
-# ── Voice STT — NO page reload approach ──────────────────────────────────────
-# KEY INSIGHT: page reload kills session_state.
-# SOLUTION: Use st.session_state directly via a Streamlit text_input
-# that JS writes to using the nativeInputValueSetter trick,
-# combined with st.experimental_rerun via auto-submit on Enter.
-#
-# ACTUAL WORKING APPROACH:
-# - Render a visible text input bound to session_state
-# - JS fills it via nativeInputValueSetter + dispatches Enter keydown
-# - Streamlit sees the Enter on chat_input equivalent → reruns
-# - session_state is preserved (no page reload)
 
 def stt_component():
     """
@@ -225,9 +207,6 @@ function setStatus(msg,color){
 </body>
 </html>
 """, height=110)
-
-
-# ── Token helpers ─────────────────────────────────────────────────────────────
 def do_refresh() -> bool:
     try:
         res = requests.post(
@@ -304,8 +283,6 @@ def api_delete(endpoint: str):
             res = requests.delete(endpoint, headers=auth_headers(), timeout=10)
     return res
 
-
-# ── Chat helpers ──────────────────────────────────────────────────────────────
 def load_chat_list():
     try:
         res = api_get(f"{CHATS_URL}/{st.session_state.user_id}")
@@ -359,9 +336,6 @@ def auto_title(question: str):
             load_chat_list()
         except Exception:
             pass
-
-
-# ── Stream response ───────────────────────────────────────────────────────────
 def do_stream_and_save(question: str):
     with st.chat_message("assistant"):
         placeholder = st.empty()
@@ -389,9 +363,6 @@ def do_stream_and_save(question: str):
     st.session_state.pending_question = ""
     st.session_state.processing       = False
     st.rerun()
-
-
-# ── Auth page ─────────────────────────────────────────────────────────────────
 def show_auth_page():
     st.title("💼 Career AI")
     st.markdown("---")
@@ -451,9 +422,6 @@ def show_auth_page():
                             st.error(res.json().get("detail", "Signup failed"))
                     except Exception as e:
                         st.error(f"Connection error: {e}")
-
-
-# ── Main app ──────────────────────────────────────────────────────────────────
 def show_main_app():
     st.sidebar.title("🚀 Career AI")
     st.sidebar.markdown(f"👤 **{st.session_state.username}**")
@@ -504,28 +472,17 @@ def show_main_app():
         st.rerun()
 
     st.title(f"💼 {tool}")
-
-    # ── Career Chat ───────────────────────────────────────────────────────────
     if tool == "Career Chat":
 
         if not st.session_state.current_chat_id:
             start_new_chat()
-
-        # Render existing messages
         for msg in st.session_state.messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
-
-        # Stream pending if exists
         if st.session_state.pending_question and st.session_state.processing:
             do_stream_and_save(st.session_state.pending_question)
             return
-
-        # ── Voice mic widget ─────────────────────────────────────────────────
-        # JS fills the chat input textarea directly and clicks submit button
         stt_component()
-
-        # ── Chat input (typed + voice both go here) ───────────────────────────
         user_input = st.chat_input(
             "Please wait..." if st.session_state.processing else "Ask your career question...",
             disabled=st.session_state.processing,
@@ -539,8 +496,6 @@ def show_main_app():
             if len(st.session_state.messages) == 1:
                 auto_title(user_input)
             st.rerun()
-
-    # ── Resume Scan ───────────────────────────────────────────────────────────
     elif tool == "Resume Scan":
         st.subheader("📄 Upload Resume")
         uploaded_file = st.file_uploader("Upload PDF or Text Resume")
@@ -556,8 +511,6 @@ def show_main_app():
                             placeholder.markdown(output)
                 except Exception as e:
                     st.error(f"❌ Error: {e}")
-
-    # ── Roadmap ───────────────────────────────────────────────────────────────
     elif tool == "Roadmap":
         st.subheader("🧭 Career Roadmap Generator")
         career = st.text_input("Enter Career (e.g. Neurosurgeon, Data Scientist, IAS Officer)")
@@ -574,9 +527,6 @@ def show_main_app():
                             placeholder.markdown(output)
                 except Exception as e:
                     st.error(f"❌ Error: {e}")
-
-
-# ── Entry point ───────────────────────────────────────────────────────────────
 if st.session_state.access_token:
     show_main_app()
 else:

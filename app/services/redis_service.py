@@ -1,7 +1,5 @@
-# app/services/redis_service.py
 import redis
 
-# db=0 → cache + memory
 r = redis.Redis(
     host="redis",
     port=6379,
@@ -9,23 +7,21 @@ r = redis.Redis(
     decode_responses=True
 )
 
-# ── Cache (question → answer) ─────────────────────────────────────────────────
 def get_cache(question: str):
     return r.get(f"cache:{question}")
 
 def set_cache(question: str, answer: str):
     r.setex(
         f"cache:{question}",
-        3600,  # 1 hour expiry
+        3600,  
         answer
     )
 
-# ── Memory (per session, fast context for RAG) ────────────────────────────────
 def save_memory(session_id: str, message: str):
     key = f"memory:{session_id}"
     r.rpush(key, message)
-    r.ltrim(key, -20, -1)           # keep last 20 messages only
-    r.expire(key, 60 * 60 * 24 * 7) # expire after 7 days
+    r.ltrim(key, -20, -1)           
+    r.expire(key, 60 * 60 * 24 * 7) 
 
 def get_memory(session_id: str):
     key = f"memory:{session_id}"

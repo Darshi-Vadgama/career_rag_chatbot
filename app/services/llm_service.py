@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 OLLAMA_URL = "http://ollama:11434/api/generate"
-MODEL = "qwen2.5:7b"  # must match exactly what's pulled in your Ollama container
+MODEL = "qwen2.5:7b"  
 
 
 async def ask_llm_stream(prompt: str, temperature: float = 0.7, num_ctx: int = 4096):

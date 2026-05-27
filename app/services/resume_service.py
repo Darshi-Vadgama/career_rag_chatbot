@@ -1,4 +1,3 @@
-# resume_service.py
 
 from fastapi import UploadFile
 from PyPDF2 import PdfReader

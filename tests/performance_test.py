@@ -86,7 +86,7 @@ async def main():
 
     total_end = time.perf_counter()
 
-    # =================================================
+
     success = [x for x in results if x["ok"]]
     failed = [x for x in results if not x["ok"]]
 
@@ -104,7 +104,6 @@ async def main():
         len(success)/TOTAL_REQUESTS*100,2
     )
 
-    # =================================================
     print("========== RESULT ==========")
     print("Total Requests :", TOTAL_REQUESTS)
     print("Parallel Users :", MAX_WORKERS)
@@ -124,6 +123,5 @@ async def main():
 
     print("\nDone.")
 
-# =====================================================
 if __name__ == "__main__":
     asyncio.run(main())
